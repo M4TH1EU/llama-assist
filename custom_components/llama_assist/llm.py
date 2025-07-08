@@ -16,7 +16,7 @@ from homeassistant.helpers.llm import LLMContext, API, APIInstance, _get_exposed
     GetLiveContextTool
 from homeassistant.util import yaml as yaml_util
 
-from .const import LLAMA_LLM_API, USE_EMBEDDINGS_ENTITIES
+from .const import LLAMA_LLM_API, DEFAULT_EMBEDDINGS_ENTITIES
 
 
 class LlamaAssistAPI(API):
@@ -47,7 +47,7 @@ class LlamaAssistAPI(API):
         )
 
         self.all_exposed_entities: dict | None = None
-        self.use_embedding_for_entities = USE_EMBEDDINGS_ENTITIES
+        self.use_embedding_for_entities = DEFAULT_EMBEDDINGS_ENTITIES
 
     async def async_get_api_instance(self, llm_context: LLMContext) -> APIInstance:
         """Return the instance of the API."""

@@ -4,45 +4,55 @@ import io
 import logging
 import wave
 from collections import defaultdict
+from typing import Any
 
 from homeassistant.components import tts
-from homeassistant.components.tts import TextToSpeechEntity
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from openai import AsyncOpenAI
+
+from custom_components.llama_assist import LlamaAPIClientsConfigEntry
+from custom_components.llama_assist.const import CONF_TTS_MODEL
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
         hass: HomeAssistant,
-        config_entry: ConfigEntry,
+        config_entry: LlamaAPIClientsConfigEntry,
         async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Wyoming speech-to-text."""
-    # item: DomainDataItem = hass.data[DOMAIN][config_entry.entry_id]
-    async_add_entities([LlamaAssistTtsProvider(config_entry), ])
+    """Set up TTS entities."""
+    agent = LlamaAssistTtsProvider(config_entry)
+    async_add_entities([agent])
 
 
 class LlamaAssistTtsProvider(TextToSpeechEntity):
     """Wyoming text-to-speech provider."""
 
-    def __init__(
-            self,
-            config_entry: ConfigEntry,
-    ) -> None:
+    def __init__(self, entry: LlamaAPIClientsConfigEntry) -> None:
         """Set up provider."""
-        # self.service = service
-        # self._tts_service = next(tts for tts in service.info.tts if tts.installed)
+        self.entry = entry
+        self._attr_name = entry.title
+        self._attr_unique_id = f"{entry.entry_id}_{Platform.TTS}"
 
         voice_languages: set[str] = set()
         self._voices: dict[str, list[tts.Voice]] = defaultdict(list)
 
         voice_languages.add("en")
-        self._voices["en"].append(tts.Voice(
-            voice_id="default",
-            name="Default Voice",
-        ))
+        self._voices["en"].extend([
+            tts.Voice(voice_id="default", name="Default Voice"),
+            tts.Voice(voice_id="af_bella+af_sky", name="Bella+Sky Voice"),
+        ])
+        self._supported_languages: list[str] = list(voice_languages)
+
+        apis = self.entry.runtime_data
+        self.tts_client: AsyncOpenAI | None = apis.tts_client
+
+        # self.service = service
+        # self._tts_service = next(tts for tts in service.info.tts if tts.installed)
 
         # for voice in self._tts_service.voices:
         #     if not voice.installed:
@@ -63,11 +73,7 @@ class LlamaAssistTtsProvider(TextToSpeechEntity):
         #         self._voices[language], key=lambda v: v.name
         #     )
 
-        self._supported_languages: list[str] = list(voice_languages)
-
         # self._attr_name = self._tts_service.name
-        self._attr_name = "Llama Assist TTS"
-        self._attr_unique_id = f"{config_entry.entry_id}-tts"
 
     @property
     def default_language(self):
@@ -101,18 +107,22 @@ class LlamaAssistTtsProvider(TextToSpeechEntity):
         """Return a list of supported voices for a language."""
         return self._voices.get(language)
 
-    async def async_get_tts_audio(self, message, language, options):
+    async def async_get_tts_audio(self, message: str, language: str, options: dict[str, Any]) -> TtsAudioType:
         """Stream TTS audio from OpenAI backend and return as WAV."""
-        voice_name: str | None = options.get("voice") if options else None
-        selected_voice = voice_name or self.voice
+        if not self.tts_client:
+            _LOGGER.error("No TTS client configured")
+            return None, None
+
+        voice = options.get("voice") if options else None
+        model = self.entry.data.get(CONF_TTS_MODEL)
 
         try:
-            _LOGGER.debug("Sending TTS request to OpenAI backend (voice: %s, model: %s)", selected_voice, self.model)
+            _LOGGER.debug("Sending TTS request to OpenAI backend (voice: %s)", voice)
 
             # OpenAI's streaming response gives us raw PCM data
-            with self.client.audio.speech.with_streaming_response.create(
-                    model=self.model,
-                    voice=selected_voice,
+            with self.tts_client.audio.speech.with_streaming_response.create(
+                    model=model,
+                    voice=voice,
                     input=message,
                     response_format="pcm"  # PCM 16-bit, 24kHz, mono
             ) as response:
@@ -131,8 +141,8 @@ class LlamaAssistTtsProvider(TextToSpeechEntity):
                 data = wav_io.getvalue()
 
             _LOGGER.debug("TTS audio successfully received and converted to WAV")
-            return ("wav", data)
+            return "wav", data
 
         except Exception as e:
             _LOGGER.exception("Failed to generate TTS audio via OpenAI: %s", e)
-            return (None, None)
+            return None, None

@@ -2,35 +2,73 @@
   "config": {
     "step": {
       "user": {
+        "title": "Llama Assist",
+        "description": "Please create a unique prefix and choose what you want to add. You can use the same prefix for different engines.",
         "data": {
-          "completion-server-url": "Completion server URL (v1/chat/completions, OpenAI-compatible)",
-          "embeddings-server-url": "Embeddings server URL (v1/embeddings, OpenAI-compatible)"
-        },
-        "title": "Llama Assist Configuration",
-        "description": "Llama Assist needs an OpenAI-compatible server. Use a separate embedding server if needed; otherwise, leave the embedding URL empty. Embeddings speed up tool and entity filtering."
+          "llama_assist_entity_prefix": "Prefix for Llama Assist entities",
+          "llama_assist_add_action": "What to add?"
+        }
+      },
+      "conversation": {
+        "title": "Conversation Server",
+        "description": "This server is used for generating responses (LLM). It must be OpenAI-compatible.",
+        "data": {
+          "conversation-server-url": "Conversation server URL (you might need to include /v1/ in the URL)",
+          "conversation-api-key": "Conversation server API key",
+          "prompt": "System prompt",
+          "disable_reasoning": "Disable model reasoning (will impact quality in favor of speed)",
+          "max_history": "Maximum conversation history length",
+          "blacklist_tools": "Blacklisted tools",
+          "want_to_use_embeddings": "Do you want to use embeddings?"
+        }
+      },
+      "embeddings": {
+        "title": "Embeddings Server",
+        "description": "This server is used for generating embeddings (vector representations of text). It must be OpenAI-compatible.",
+        "data": {
+          "embeddings-server-url": "Embeddings server URL (you might need to include /v1/ in the URL)",
+          "embeddings-api-key": "Embeddings server API key",
+          "overwrite_embeddings": "Always recalculate embeddings (slower but ensures up-to-date results)",
+          "use_embeddings_tools": "Use embeddings to filter tools (improves speed)",
+          "use_embeddings_entities": "Use embeddings to filter entities (improves speed)"
+        }
+      },
+      "tts": {
+        "title": "TTS Server",
+        "description": "This server is used for text-to-speech (TTS) generation. It must be OpenAI-compatible.",
+        "data": {
+          "tts-server-url": "TTS server URL (you might need to include /v1/ in the URL)",
+          "tts-api-key": "TTS server API key",
+          "tts-model": "TTS model (e.g., 'gpt-3.5-turbo')",
+          "tts-voice": "TTS voice (e.g., 'alloy')"
+        }
       }
     },
     "error": {
+      "missing_prefix": "You must provide a unique prefix for Llama Assist entities",
+      "entity_exists": "An entity with this prefix already exists",
+      "invalid_auth": "Invalid authentication credentials",
+      "missing_url": "You must provide a URL for the server",
       "unknown": "An unknown error occurred",
       "cannot_connect": "Unable to connect to the server"
-    },
-    "abort": {
-      "already_configured": "This server is already configured"
     }
   },
   "options": {
     "step": {
+      "init": {
+        "title": "What do you want to configure?",
+        "menu_options": {
+          "conversation": "Conversation Server",
+          "embeddings": "Embeddings Server"
+        }
+      },
       "user": {
         "title": "Llama Assist Options",
         "data": {
-          "prompt": "System prompt",
           "llm_hass_api": "Which LLM APIs to use (provides the tools to interact with Home Assistant)",
-          "max_history": "Maximum conversation history length",
-          "disable_reasoning": "Disable model reasoning (will impact quality in favor of speed)",
           "embeddings-server-url": "Embeddings server URL (v1/embeddings, OpenAI-compatible)",
           "use_embeddings_tools": "Use embeddings to filter tools (improves speed)",
           "use_embeddings_entities": "Use embeddings to filter entities (improves speed)",
-          "blacklist_tools": "Blacklisted tools",
           "overwrite_embeddings": "Always recalculate embeddings (slower but ensures up-to-date results)"
         }
       }

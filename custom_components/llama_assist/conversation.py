@@ -7,7 +7,7 @@ from homeassistant.components import assist_pipeline, conversation
 from homeassistant.components.conversation import AbstractConversationAgent, ConversationEntityFeature, SystemContent
 from homeassistant.components.conversation import ConversationEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import MATCH_ALL
+from homeassistant.const import MATCH_ALL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr, intent, llm
@@ -29,7 +29,7 @@ from voluptuous_openapi import convert
 
 from . import DOMAIN, LlamaAssistAPI, LlamaAPIClientsConfigEntry
 from .const import CONF_PROMPT, LLAMA_LLM_API, \
-    CONF_USE_EMBEDDINGS_TOOLS, LOGGER, MAX_TOOL_ITERATIONS, CONF_USE_EMBEDDINGS_ENTITIES
+    CONF_EMBEDDINGS_TOOLS, LOGGER, MAX_TOOL_ITERATIONS, CONF_EMBEDDINGS_ENTITIES
 from .embeddings import EmbeddingsDatabase
 
 
@@ -38,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: LlamaAPIClientsCo
     """Set up conversation entities."""
     agent = LlamaConversationEntity(config_entry)
     async_add_entities([agent])
+
 
 
 def _format_tool(
@@ -170,7 +171,7 @@ class LlamaConversationEntity(ConversationEntity, AbstractConversationAgent):
         """Initialize the agent."""
         self.entry = entry
         self._attr_name = entry.title
-        self._attr_unique_id = entry.entry_id
+        self._attr_unique_id = f"{entry.entry_id}_{Platform.CONVERSATION}"
 
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
@@ -180,16 +181,15 @@ class LlamaConversationEntity(ConversationEntity, AbstractConversationAgent):
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
-        settings = {**self.entry.data, **self.entry.options}
         apis = self.entry.runtime_data
         self.completion_client: AsyncOpenAI = apis.completion_client
         self.embeddings_client: AsyncOpenAI | None = apis.embeddings_client
         self.embeddings_db: EmbeddingsDatabase | None = apis.embeddings_db
 
+        # TODO: investigate if we can add features here to access from llm context (see pipeline.py)
         self._attr_supported_features = (
             ConversationEntityFeature.CONTROL
         )
-        # TODO: investigate if we can add features here to access from llm context (see pipeline.py)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -233,7 +233,7 @@ class LlamaConversationEntity(ConversationEntity, AbstractConversationAgent):
             return err.as_conversation_result()
 
         tools_to_use: list[llm.Tool] = []
-        if settings.get(CONF_USE_EMBEDDINGS_ENTITIES) or settings.get(CONF_USE_EMBEDDINGS_TOOLS):
+        if settings.get(CONF_EMBEDDINGS_ENTITIES) or settings.get(CONF_EMBEDDINGS_TOOLS):
             # If using embeddings, we need to get the user input vector
             user_input_vector = await self.embeddings_client.embeddings.create(input=user_input.text, model="none",
                                                                                encoding_format="float")
@@ -241,11 +241,11 @@ class LlamaConversationEntity(ConversationEntity, AbstractConversationAgent):
             if user_input_vector:
                 user_input_vector = user_input_vector[0].model_extra.get('embedding')[0]
 
-                if settings.get(CONF_USE_EMBEDDINGS_TOOLS):
+                if settings.get(CONF_EMBEDDINGS_TOOLS):
                     await self.embeddings_db.store_tools(chat_log.llm_api.tools)
                     tools_to_use = await self.embeddings_db.matching_tools(user_input=user_input_vector)
 
-                if settings.get(CONF_USE_EMBEDDINGS_ENTITIES):
+                if settings.get(CONF_EMBEDDINGS_ENTITIES):
                     # If using embeddings entities, we need to get the relevant entities and add them to the chat log for the LLM
                     if isinstance(chat_log.llm_api.api, LlamaAssistAPI):
                         _all_exposed_entities = chat_log.llm_api.api.all_exposed_entities
